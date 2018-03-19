@@ -6,43 +6,38 @@ import pytest
 import pandas as pd
 import numpy as np
 
-splits = {"quartiles": ([0, .25, .5, .75, 1.],
-                        "0-25 25-50 50-75 75-100".split())}
-
-merge_features = {"gene": "GeneID", "transcript": "TranscriptID", "exon": "ExonID"}
+from featurefetch.sort import sort_features, sort_and_select
 
 
-def sort_features(df, sort_feature, sort_on, split):
+@pytest.fixture
+def expected_sorted_features():
 
-    fdf = df.loc[df.Feature == sort_feature]
+    c = """Group  Length           GeneID
+25    0-25      67  ENSG00000278267
+36    0-25     137  ENSG00000284332
+47    0-25     839  ENSG00000268020
+39   25-50    1527  ENSG00000237613
+28   25-50    1555  ENSG00000243485
+0    50-75    2540  ENSG00000223972
+57   50-75    6166  ENSG00000186092
+50  75-100    6518  ENSG00000240361
+12  75-100   15166  ENSG00000227232
+76  75-100   44428  ENSG00000238009"""
 
-    if sort_on == "Length":
-        length = (fdf.End - fdf.Start)
-        fdf.insert(fdf.shape[1], "Length", length)
+    return pd.read_table(StringIO(c), sep="\s+")
 
-    split = pd.qcut(fdf[sort_on], splits[split][0], splits[split][1]).astype(str)
-    fdf.insert(fdf.shape[1], "Group", split)
-
-    fdf = fdf.sort_values(["Group", sort_on])
-
-    return fdf[["Group", sort_on, merge_features[sort_feature]]]
-
-
-def sort_and_select(df, sort_feature, sort_on, split, keep_feature):
-
-    "Need to sort features, then merge them with original df, lastly"
-    "pick them out the feature to keep after using sort order of sort_features"
-
-    pass
-
-
-
-def test_sort_features(expected_result_parse_ensembl_gtf):
+def test_sort_features(expected_result_parse_ensembl_gtf, expected_sorted_features):
 
     df = expected_result_parse_ensembl_gtf
 
     result = sort_features(df, "gene", "Length", "quartiles")
 
-    print(result)
+    pd.testing.assert_frame_equal(result, expected_sorted_features)
 
-    assert 0
+
+def test_sort_and_select(expected_result_parse_ensembl_gtf, expected_result_sort_and_select):
+
+    df = expected_result_parse_ensembl_gtf
+    result = sort_and_select(df, "gene", "Length", "quartiles", "exon")
+
+    pd.testing.assert_frame_equal(result, expected_result_sort_and_select)

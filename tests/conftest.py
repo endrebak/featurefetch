@@ -21,3 +21,8 @@ def ensembl_gtf():
 @pytest.fixture(scope="session")
 def expected_result_parse_ensembl_gtf():
     return pd.read_table("test_data/expected_result_parse_ensembl_gtf.txt", sep=" ", header=0)
+
+
+@pytest.fixture(scope="session")
+def expected_result_sort_and_select():
+    return pd.read_table("test_data/expected_result_sort_and_select.txt", sep="\t", header=0, index_col=0)

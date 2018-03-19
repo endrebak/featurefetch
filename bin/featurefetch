@@ -1,0 +1,69 @@
+#!/usr/bin/env python
+
+import argparse
+
+import os
+
+
+from featurefetch.sort import sort_and_select
+from featurefetch.parse import parse_gtf
+
+parser = argparse.ArgumentParser(
+    description="""Complex fetching and sorting and aggregation of features.
+(Visit github.com/endrebak/featurefetch for examples and help.)
+    """,
+    prog=os.path.basename(__file__))
+
+
+parser.add_argument(
+    '--gtf',
+    '-g',
+    required=True,
+    type=str,
+    help='''GTF file to fetch features from.''')
+
+parser.add_argument(
+    '--sort-feature',
+    '-sf',
+    required=True,
+    type=str,
+    default="gene",
+    help='''Feature to sort on. Typically available: gene, transcript, exon.''')
+
+
+parser.add_argument(
+    '--sort-on',
+    '-so',
+    required=True,
+    type=str,
+    help='''Feature to sort on. Currently available: Length.''')
+
+
+parser.add_argument(
+    '--keep-feature',
+    '-kf',
+    required=True,
+    type=str,
+    help='''Feature to keep: gene, transcript, exon.''')
+
+
+parser.add_argument(
+    '--split',
+    '-s',
+    required=True,
+    type=str,
+    help='''Where to split --sort-on into groups. Currently available: Quartiles.''')
+
+
+if __name__ == "__main__":
+
+    args = parser.parse_args()
+
+    df = parse_gtf(args.gtf)
+    sdf = sort_and_select(df,
+                          args.sort_feature,
+                          args.sort_on,
+                          args.split,
+                          args.keep_feature)
+
+    print(sdf.to_csv(sep=" ", index=False))
