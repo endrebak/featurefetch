@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 import argparse
+import sys
 
 import os
 
+import pandas as pd
 
 from featurefetch.sort import sort_and_select
 from featurefetch.parse import parse_gtf
@@ -22,6 +24,19 @@ parser.add_argument(
     type=str,
     help='''GTF file to fetch features from.''')
 
+
+
+parser.add_argument(
+    '--keep-transcript',
+    '-kt',
+    required=False,
+    type=str,
+    default="all",
+    help='''Which transcripts to keep during analyses. Removing some transcripts will
+also remove the exons belonging to them. Currently available: longest, all.
+Default: all.''')
+
+
 parser.add_argument(
     '--sort-feature',
     '-sf',
@@ -36,7 +51,7 @@ parser.add_argument(
     '-so',
     required=True,
     type=str,
-    help='''Feature to sort on. Currently available: Length.''')
+    help='''Characteristic to sort on. Currently available: Length.''')
 
 
 parser.add_argument(
@@ -55,15 +70,69 @@ parser.add_argument(
     help='''Where to split --sort-on into groups. Currently available: Quartiles.''')
 
 
+parser.add_argument(
+    '--which-intron-exon',
+    '-wie',
+    required=False,
+    type=str,
+    default="all",
+    help='''Allows you to select a subset of introns/exons (if introns/exons are the feature to keep).
+Options: all, first, last, internal, first_and_last.''')
+
+
+def remove_all_but_longest_transcript(df):
+
+    transcripts_to_remove = []
+    for g, gdf in df.groupby("GeneID"):
+        tdf = gdf[(gdf.Feature == "transcript")]
+        transcript_to_keep = tdf.loc[(tdf.End - tdf.Start).idxmax()].TranscriptID
+        gene_transcripts_to_remove = tdf[~(tdf.TranscriptID == transcript_to_keep)].TranscriptID
+        transcripts_to_remove.extend(gene_transcripts_to_remove)
+
+    return df[~df.TranscriptID.isin(transcripts_to_remove)]
+
+
 if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    print("Parsing gtf.", file=sys.stderr)
     df = parse_gtf(args.gtf)
+
+    if args.keep_transcript == "longest":
+        print("Removing all but longest transcript.", file=sys.stderr)
+        df = remove_all_but_longest_transcript(df)
+
+    print("Sorting and selecting.", file=sys.stderr)
     sdf = sort_and_select(df,
                           args.sort_feature,
                           args.sort_on,
                           args.split,
                           args.keep_feature)
+
+
+    # TODO: redundancy, refactor
+    # TODO: make work for introns too
+    which = args.which_intron_exon
+    if args.keep_feature == "exon" and which != "all":
+        if which == "first":
+            sdf = sdf[sdf.ExonNumber == 1]
+        elif which == "internal":
+            exons = []
+            for transcript, tdf in sdf.groupby("TranscriptID"):
+                exons.append(tdf.sort_values("ExonNumber").iloc[1:-1])
+            sdf = pd.concat(exons)
+        elif which == "last":
+            exons = []
+            for transcript, tdf in sdf.groupby("TranscriptID"):
+                exons.append(tdf.sort_values("ExonNumber").iloc[-1])
+            sdf = pd.concat(exons)
+        elif which == "first_and_last":
+            exons = []
+            for transcript, tdf in sdf.groupby("TranscriptID"):
+                exons.append(tdf.sort_values("ExonNumber").iloc[[0, -1]])
+            sdf = pd.concat(exons)
+        else:
+            print("Illegal value for --which-intron-exon: " + which + ". Ignoring.", file=sys.stderr)
 
     print(sdf.to_csv(sep=" ", index=False))
