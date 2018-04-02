@@ -103,6 +103,7 @@ if __name__ == "__main__":
         print("Removing all but longest transcript.", file=sys.stderr)
         df = remove_all_but_longest_transcript(df)
 
+    print(df.head())
     print("Sorting and selecting.", file=sys.stderr)
     sdf = sort_and_select(df,
                           args.sort_feature,
@@ -111,10 +112,11 @@ if __name__ == "__main__":
                           args.keep_feature)
 
 
+    print(sdf.to_csv(sep=" "))
     # TODO: redundancy, refactor
     # TODO: make work for introns too
     which = args.which_intron_exon
-    if args.keep_feature == "exon" and which != "all":
+    if args.keep_feature in "exon intron".split() and which != "all":
         if which == "first":
             sdf = sdf[sdf.ExonNumber == 1]
         elif which == "internal":

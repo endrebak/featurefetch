@@ -1,6 +1,7 @@
 
 import pandas as pd
 
+from featurefetch.regions import find_introns
 
 splits = {"quartiles": ([0, .25, .5, .75, 1.],
                         "0-25 25-50 50-75 75-100".split())}
@@ -9,6 +10,7 @@ merge_features = {"gene": "GeneID", "transcript": "TranscriptID", "exon": "ExonI
 
 def sort_features(df, sort_feature, sort_on, split):
 
+    # e.g. Gene, Transcript
     fdf = df.loc[df.Feature == sort_feature]
 
     if sort_on == "Length":
@@ -32,6 +34,9 @@ def sort_and_select(df, sort_feature, sort_on, split, keep_feature):
 
     sdf = sort_features(df, sort_feature, sort_on, split)
     sdf = sdf.loc[:,[merge_col, "Group", sort_on]]
+
+    if keep_feature == "intron":
+        df = find_introns(df)
 
     kdf = df[df.Feature == keep_feature]
 

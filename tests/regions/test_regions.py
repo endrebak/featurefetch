@@ -1,6 +1,8 @@
 
 from io import StringIO
 
+from featurefetch.regions import find_introns
+
 import pytest
 
 import pandas as pd
@@ -58,43 +60,6 @@ def expected_forward_simple():
     return pd.read_table(StringIO(c), sep=" ", index_col=0)
 
 
-def find_introns(df):
-
-    introns_to_concat = []
-    for t, tdf in df.groupby("TranscriptID"):
-        transcript = tdf.loc[tdf.Feature == "transcript"]
-        exons = tdf.loc[tdf.Feature == "exon"]
-        exons = exons.sort_values("Start")
-
-        # if there is an intron before the first exon
-        first_exon_first_transcript_diff = transcript.Start.iloc[0] - exons.head(1).Start.iloc[0]
-        if first_exon_first_transcript_diff != 0:
-            introns_head = exons.head(1).copy()
-            introns_head.loc[:, "Start"] = transcript.Start.iloc[0]
-            introns_head.loc[:, "End"] = introns_head.Start + abs(first_exon_first_transcript_diff)
-            introns_head.Feature = "intron"
-
-        introns = exons.copy()
-        introns.Feature = "intron"
-        introns.loc[:, "Start"] = exons.End
-        introns.loc[:, "End"] = exons.Start.shift(-1)
-        introns.loc[exons.tail(1).index, "End"] = transcript.End
-
-        if first_exon_first_transcript_diff:
-            introns = pd.concat([introns_head, introns])
-
-        # if the last exon ends the same position as the transcript there is no last intron
-        last_exon_last_transcript_diff = transcript.End.iloc[0] - exons.tail(1).End.iloc[0]
-        if last_exon_last_transcript_diff == 0:
-            introns = introns.iloc[:-1]
-
-        # print(introns)
-
-        introns_to_concat.append(introns)
-
-    return pd.concat(introns_to_concat).reset_index(drop=True)
-
-
 # @pytest.mark.parametrize("df,expected", [(forward_simple, None)])
 # wtf does this test fail?
 def test_find_introns_forward_simple(forward_simple, expected_forward_simple): #, expected):
@@ -108,34 +73,29 @@ def test_find_introns_forward_simple(forward_simple, expected_forward_simple): #
     introns_subset = introns[cols_to_compare]
     expected_subset = expected_forward_simple[cols_to_compare]
 
-    print(introns_subset.to_csv(sep=" ", index=False))
-    print(expected_subset.to_csv(sep=" ", index=False))
-
     assert list(introns_subset.Start.values) == list(expected_subset.Start.values)
     assert list(introns_subset.End.values) == list(expected_subset.End.values)
 
 
-def test_find_introns_reverse_complex(reverse_complex, expected_reverse_complex): #, expected):
+# def test_find_introns_reverse_complex(reverse_complex, expected_reverse_complex): #, expected):
 
-    df = reverse_complex
+#     df = reverse_complex
 
-    # print(df)
-    introns = find_introns(df)
+#     introns = find_introns(df)
 
-    cols_to_compare = "Start End".split()
+#     cols_to_compare = "Start End".split()
 
-    introns_subset = introns[cols_to_compare]
-    expected_subset = expected_reverse_complex[cols_to_compare]
+#     introns_subset = introns[cols_to_compare]
+#     expected_subset = expected_reverse_complex[cols_to_compare]
 
-    assert list(introns_subset.Start.values) == list(expected_subset.Start.values)
-    assert list(introns_subset.End.values) == list(expected_subset.End.values)
+#     assert list(introns_subset.Start.values) == list(expected_subset.Start.values)
+#     assert list(introns_subset.End.values) == list(expected_subset.End.values)
 
 
 def test_find_introns_single_exon(single_exon): #, expected_reverse_complex): #, expected):
 
     df = single_exon
 
-    # print(df)
     introns = find_introns(df)
 
     assert introns.empty # single transcripts that are equal to exon have no introns

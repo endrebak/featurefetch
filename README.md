@@ -6,6 +6,10 @@ more to come.
 
 Will grow organically as I need features, not rushing to finish this.
 
+## Why?
+
+Creating beautiful heatmaps in deeptools. If you have another use case I'd love to hear it.
+
 ## Example
 
 (\#\# is stderr, \# stdout)
