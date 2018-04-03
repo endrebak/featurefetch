@@ -80,6 +80,14 @@ parser.add_argument(
 Options: all, first, last, internal, first_and_last.''')
 
 
+parser.add_argument(
+    '--deeptools-output',
+    '-do',
+    action="store_true",
+    default=False,
+    help='''Write the output in the correct 7-column bed-like format for deeptools computematrix. (#chrom start end name score strand deepTools_group)''')
+
+
 def remove_all_but_longest_transcript(df):
 
     transcripts_to_remove = []
@@ -116,7 +124,10 @@ if __name__ == "__main__":
     which = args.which_intron_exon
     if args.keep_feature in "exon intron".split() and which != "all":
         if which == "first":
-            sdf = sdf[sdf.ExonNumber == 1]
+            exons = []
+            for transcript, tdf in sdf.groupby("TranscriptID"):
+                exons.append(tdf.sort_values("ExonNumber").iloc[0].to_dict())
+            sdf = pd.DataFrame.from_dict(exons)
         elif which == "internal":
             exons = []
             for transcript, tdf in sdf.groupby("TranscriptID"):
@@ -125,8 +136,8 @@ if __name__ == "__main__":
         elif which == "last":
             exons = []
             for transcript, tdf in sdf.groupby("TranscriptID"):
-                exons.append(tdf.sort_values("ExonNumber").iloc[-1])
-            sdf = pd.concat(exons)
+                exons.append(tdf.sort_values("ExonNumber").iloc[-1].to_dict())
+            sdf = pd.DataFrame.from_dict(exons)
         elif which == "first_and_last":
             exons = []
             for transcript, tdf in sdf.groupby("TranscriptID"):
@@ -135,4 +146,11 @@ if __name__ == "__main__":
         else:
             print("Illegal value for --which-intron-exon: " + which + ". Ignoring.", file=sys.stderr)
 
-    print(sdf.to_csv(sep=" ", index=False))
+    sdf.loc[:, ["Start", "End"]] = sdf[["Start", "End"]].astype(int)
+
+
+    if args.deeptools_output:
+        sdf = sdf["Chromosome Start End GeneID Score Strand Group".split()]
+        sdf.columns = "#chrom start end name score strand deepTools_group".split()
+
+    print(sdf.to_csv(sep="\t", index=False), end="")
