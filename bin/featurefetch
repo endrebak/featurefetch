@@ -5,10 +5,21 @@ import sys
 
 import os
 
+from os.path import dirname
+
 import pandas as pd
 
-from featurefetch.sort import sort_and_select
+from subprocess import call
+from collections import defaultdict
+
+from itertools import product
+
+from pyranges import GRanges
+
+from featurefetch.sort import (add_sort_feature, split_feature,
+                               merge_features_dict)
 from featurefetch.parse import parse_gtf
+from featurefetch.regions import find_introns
 
 parser = argparse.ArgumentParser(
     description="""Complex fetching and sorting and aggregation of features.
@@ -25,6 +36,22 @@ parser.add_argument(
     help='''GTF file to fetch features from.''')
 
 
+parser.add_argument(
+    '--outfolder',
+    '-O',
+    required=False,
+    type=str,
+    help='''If --outfolder is given, one featurefile is written to <outfolder>/<feature>.txt
+for each feature.''')
+
+
+parser.add_argument(
+    '--outfile',
+    '-o',
+    required=True,
+    type=str,
+    help='''The file to write the results in.''')
+
 
 parser.add_argument(
     '--keep-transcript',
@@ -40,7 +67,7 @@ Default: all.''')
 parser.add_argument(
     '--sort-feature',
     '-sf',
-    required=True,
+    required=False,
     type=str,
     default="gene",
     help='''Feature to sort on. Typically available: gene, transcript, exon.''')
@@ -49,7 +76,7 @@ parser.add_argument(
 parser.add_argument(
     '--sort-on',
     '-so',
-    required=True,
+    required=False,
     type=str,
     help='''Characteristic to sort on. Currently available: Length.''')
 
@@ -57,7 +84,7 @@ parser.add_argument(
 parser.add_argument(
     '--keep-feature',
     '-kf',
-    required=True,
+    required=False,
     type=str,
     help='''Feature to keep: gene, transcript, exon, intron.''')
 
@@ -65,19 +92,19 @@ parser.add_argument(
 parser.add_argument(
     '--split',
     '-s',
-    required=True,
+    required=False,
     type=str,
     help='''Where to split --sort-on into groups. Currently available: Quartiles.''')
 
 
-parser.add_argument(
-    '--which-intron-exon',
-    '-wie',
-    required=False,
-    type=str,
-    default="all",
-    help='''Allows you to select a subset of introns/exons (if introns/exons are the feature to keep).
-Options: all, first, last, internal, first_and_last.''')
+# parser.add_argument(
+#     '--which-intron-exon',
+#     '-wie',
+#     required=False,
+#     type=str,
+#     default="all",
+#     help='''Allows you to select a subset of introns/exons (if introns/exons are the feature to keep).
+# Options: all, first, last, internal, first_and_last.''')
 
 
 parser.add_argument(
@@ -107,10 +134,30 @@ def remove_all_but_longest_transcript(df):
 
     return df[~df.TranscriptID.isin(transcripts_to_remove)]
 
+remove_position = {"first": slice(1, None), "last": slice(0, -1), "internal": [0, -1],
+                   "first_and_last": slice(1, -1)}
+
+
+def write_file(feature_df, feature, deeptools_output, outfolder):
+
+    outfile = "{outfolder}/{feature}.txt".format(outfolder=args.outfolder,
+                                                feature=feature)
+
+    if deeptools_output:
+
+        feature_df = feature_df["Chromosome Start End GeneID Score Strand Group".split()]
+        feature_df.columns = "#chrom start end name score strand deepTools_group".split()
+
+    feature_df.to_csv(outfile, sep="\t", index=False, na_rep="NA")
+
 
 if __name__ == "__main__":
 
     args = parser.parse_args()
+
+    if args.outfolder:
+        call("mkdir -p {}".format(args.outfolder), shell=True)
+
 
     print("Parsing gtf.", file=sys.stderr)
     df = parse_gtf(args.gtf)
@@ -119,46 +166,67 @@ if __name__ == "__main__":
         print("Removing all but longest transcript.", file=sys.stderr)
         df = remove_all_but_longest_transcript(df)
 
-    print("Sorting and selecting.", file=sys.stderr)
-    sdf = sort_and_select(df,
-                          args.sort_feature,
-                          args.sort_on,
-                          args.split,
-                          args.keep_feature, args.which_intron_exon, args.exclude_feature)
+    # if "intron" in (args.sort_feature, args.keep_feature, args.exclude_feature):
+    print("Computing introns.", file=sys.stderr)
+    intron_df = find_introns(df)
+    df = df.append(intron_df).sort_values("TranscriptID")
 
-    # sdf.to_csv("test.txt", sep=" ", index=False, header=False, na_rep="NA")
 
-    # todo: redundancy, refactor
-    # TODO: make work for introns too
-    which = args.which_intron_exon
-    if args.keep_feature in "exon intron".split() and which != "all":
-        if which == "first":
-            exons = []
-            for transcript, tdf in sdf.groupby("TranscriptID"):
-                exons.append(tdf.sort_values("ExonNumber").iloc[0].to_dict())
-            sdf = pd.DataFrame.from_dict(exons)
-        elif which == "internal":
-            exons = []
-            for transcript, tdf in sdf.groupby("TranscriptID"):
-                exons.append(tdf.sort_values("ExonNumber").iloc[1:-1])
-            sdf = pd.concat(exons)
-        elif which == "last":
-            exons = []
-            for transcript, tdf in sdf.groupby("TranscriptID"):
-                exons.append(tdf.sort_values("ExonNumber").iloc[-1].to_dict())
-            sdf = pd.DataFrame.from_dict(exons)
-        elif which == "first_and_last":
-            exons = []
-            for transcript, tdf in sdf.groupby("TranscriptID"):
-                exons.append(tdf.sort_values("ExonNumber").iloc[[0, -1]])
-            sdf = pd.concat(exons)
-        else:
-            print("Illegal value for --which-intron-exon: " + which + ". Ignoring.", file=sys.stderr)
+    if args.sort_on and args.sort_feature:
+        print("Sorting on {}".format(args.sort_feature), file=sys.stderr)
+        df_with_sort_feature = add_sort_feature(df, args.sort_feature, args.sort_on)
 
-    sdf.loc[:, ["Start", "End"]] = sdf[["Start", "End"]].astype(int)
+        if args.split:
+            print("Splitting {} into {}".format(args.sort_feature, args.split), file=sys.stderr)
+            df_with_split = split_feature(df_with_sort_feature, args.split,
+                                          args.sort_on, args.sort_feature)
 
-    if args.deeptools_output:
-        sdf = sdf["Chromosome Start End GeneID Score Strand Group".split()]
-        sdf.columns = "#chrom start end name score strand deepTools_group".split()
+            merge_col = merge_features_dict[args.sort_feature]
 
-    print(sdf.to_csv(sep="\t", index=False), end="")
+            df = df.merge(df_with_split, how="left", on=merge_col)
+
+
+    if args.exclude_feature:
+        print("Excluding feature {}".format(sort_feature, args.split), file=sys.stderr)
+        exclude = GRanges(df.loc[args.exclude_feature == df.Feature])
+        data = GRanges(df)
+
+        df = (data - exclude).df
+
+
+
+    idx_to_remove = dict()
+    for intron_or_exon, remove_position_label in product("exon intron".split(), list(remove_position.keys())):
+
+        remove_position_slice = remove_position[remove_position_label]
+
+        indexes_to_remove = []
+
+        subset_df = df[df.Feature == intron_or_exon]
+
+        for transcript, tdf in subset_df.groupby("TranscriptID"):
+            idx = tdf.sort_values("ExonNumber").iloc[remove_position_slice].index.tolist()
+            indexes_to_remove.extend(idx)
+
+        idx_to_remove[intron_or_exon, remove_position_label] = indexes_to_remove
+
+
+    df.loc[:, ["Start", "End"]] = df[["Start", "End"]].astype(int)
+
+
+    if args.outfolder:
+        for feature, feature_df in df.groupby("Feature"):
+
+            if feature in "intron exon".split():
+                for pos in remove_position:
+                    idx = idx_to_remove[feature, pos]
+                    fdf_pruned = feature_df[~feature_df.index.isin(idx)]
+                    file_label = feature + "_" + pos
+                    write_file(fdf_pruned, file_label, args.deeptools_output, args.outfolder)
+
+            write_file(feature_df, feature, args.deeptools_output, args.outfolder)
+
+    if dirname(args.outfile):
+        call("mkdir -p {}".format(dirname(args.outfile)), shell=True)
+
+    df.to_csv(args.outfile, sep="\t", index=False, na_rep="NA")

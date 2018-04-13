@@ -10,60 +10,26 @@ splits = {"quartiles": ([0, .25, .5, .75, 1.],
                         "0-25 25-50 50-75 75-100".split())}
 
 
-merge_features = {"gene": "GeneID", "transcript": "TranscriptID", "exon": "ExonID"}
+merge_features_dict = {"gene": "GeneID", "transcript": "TranscriptID", "exon": "ExonID"}
 
 
-def sort_features(df, sort_feature, sort_on, split):
+def add_sort_feature(df, sort_feature, sort_on):
 
-    # e.g. Gene, Transcript
-    fdf = df.loc[df.Feature == sort_feature]
-
+    df = df.loc[df.Feature == sort_feature]
     if sort_on == "Length":
-        length = (fdf.End - fdf.Start)
-        fdf.insert(fdf.shape[1], "Length", length)
+        length = (df.End - df.Start)
+        df.insert(df.shape[1], "Length", length)
 
-    split = pd.qcut(fdf[sort_on], splits[split][0], splits[split][1]).astype(str)
-    fdf.insert(fdf.shape[1], "Group", split)
-
-    fdf = fdf.sort_values(["Group", sort_on])
-
-    return fdf[["Group", sort_on, merge_features[sort_feature]]]
+    return df
 
 
-def sort_and_select(df, sort_feature, sort_on, split, keep_feature, which, exclude=None):
+def split_feature(df, split, sort_on, sort_feature):
 
-    "Need to sort features, then merge them with original df, lastly"
-    "pick them out the feature to keep after using sort order of sort_features"
+    df = df[df.Feature == sort_feature]
+    split_values, split_names = splits[split]
+    split = pd.qcut(df[sort_on], split_values, split_names).astype(str)
+    df.insert(df.shape[1], "Group", split)
 
-    merge_col = merge_features[sort_feature]
+    df = df.sort_values(["Group", sort_on])
 
-    sdf = sort_features(df, sort_feature, sort_on, split)
-    sdf = sdf.loc[:,[merge_col, "Group", sort_on]]
-
-    if keep_feature == "intron":
-        df = find_introns(df)
-
-    if exclude == "intron":
-        exclude_df = find_introns(df)
-    elif exclude:
-        exclude_df = df[df.Feature == exclude]
-
-    kdf = df[df.Feature == keep_feature]
-
-    merged = kdf.merge(sdf, how="right", on=merge_col)
-    merged = merged.sort_values(["Group", sort_on])
-
-    if exclude:
-        merged.to_csv("merged.csv", sep=" ")
-        exclude_df.to_csv("exclude_df.csv", sep=" ")
-        mgr = GRanges(merged)
-        xgr = GRanges(exclude_df)
-
-        print(mgr)
-        print(xgr)
-        print(mgr - xgr)
-
-        merged = (mgr - xgr).df
-        merged.to_csv("kept.csv", sep=" ")
-
-    return merged
+    return df[["Group", merge_features_dict[sort_feature]]]

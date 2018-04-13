@@ -15,27 +15,23 @@ Creating beautiful heatmaps in deeptools. If you have another use case I'd love 
 (\#\# is stderr, \# stdout)
 
 ```bash
-featurefetch -g test_data/ensembl.gtf   -sf gene -so Length -kf exon -s quartiles -kt longest --which-intron-exon internal
-## Parsing gtf.
-## Removing all but longest transcript.
-## Sorting and selecting.
-# Chromosome Feature Source Start End Score Strand Frame GeneID TranscriptID ExonNumber ExonID Group Length
-# 1 exon havana 35277 35481 . - . ENSG00000237613 ENST00000417324 2.0 ENSE00001669267 25-50 1527
-# 1 exon havana 12613 12721 . + . ENSG00000223972 ENST00000456328 2.0 ENSE00003582793 50-75 2540
-# 1 exon havana 30564 30667 . + . ENSG00000243485 ENST00000473358 2.0 ENSE00001922571 25-50 1555
-# 1 exon havana 120721 120932 . - . ENSG00000238009 ENST00000477740 2.0 ENSE00001171005 75-100 44428
-# 1 exon havana 112700 112804 . - . ENSG00000238009 ENST00000477740 3.0 ENSE00001957285 75-100 44428
-# 1 exon havana 24738 24891 . - . ENSG00000227232 ENST00000488147 2.0 ENSE00003507205 75-100 15166
-# 1 exon havana 18268 18366 . - . ENSG00000227232 ENST00000488147 3.0 ENSE00003477500 75-100 15166
-# 1 exon havana 17915 18061 . - . ENSG00000227232 ENST00000488147 4.0 ENSE00003565697 75-100 15166
-# 1 exon havana 17606 17742 . - . ENSG00000227232 ENST00000488147 5.0 ENSE00003475637 75-100 15166
-# 1 exon havana 17233 17368 . - . ENSG00000227232 ENST00000488147 6.0 ENSE00003502542 75-100 15166
-# 1 exon havana 16858 17055 . - . ENSG00000227232 ENST00000488147 7.0 ENSE00003553898 75-100 15166
-# 1 exon havana 16607 16765 . - . ENSG00000227232 ENST00000488147 8.0 ENSE00003621279 75-100 15166
-# 1 exon havana 15796 15947 . - . ENSG00000227232 ENST00000488147 9.0 ENSE00002030414 75-100 15166
-# 1 exon havana 15005 15038 . - . ENSG00000227232 ENST00000488147 10.0 ENSE00001935574 75-100 15166
-# 1 exon havana 65520 65573 . + . ENSG00000186092 ENST00000641515 2.0 ENSE00003813641 50-75 6166
-# 1 exon havana 58700 58856 . + . ENSG00000240361 ENST00000642116 2.0 ENSE00003812505 75-100 6518
+featurefetch -g  ~/code/featurefetch/test_data/ensembl.gtf -sf gene -so Length -kf intron -s quartiles -kt longest -O output_folder/ -o outfile.txt
+# Parsing gtf.
+# Removing all but longest transcript.
+# Computing introns.
+# Sorting on gene
+# Splitting gene into quartiles
+head output_folder/exon_last.txt
+Chromosome      Feature Source  Start   End     Score   Strand  Frame   GeneID  TranscriptID    ExonNumber      ExonID  Group
+1       exon    havana  34554   35174   .       -       .       ENSG00000237613 ENST00000417324 3.0     ENSE00001727627 25-50
+1       exon    havana  13221   14409   .       +       .       ENSG00000223972 ENST00000456328 3.0     ENSE00002312635 50-75
+1       exon    havana  30976   31097   .       +       .       ENSG00000243485 ENST00000473358 3.0     ENSE00001827679 25-50
+1       exon    havana  92230   92240   .       -       .       ENSG00000238009 ENST00000477740 4.0     ENSE00001896976 75-100
+1       exon    havana  14404   14501   .       -       .       ENSG00000227232 ENST00000488147 11.0    ENSE00001843071 75-100
+1       exon    havana  52473   53312   .       +       .       ENSG00000268020 ENST00000606857 1.0     ENSE00003698237 0-25
+1       exon    mirbase 30366   30503   .       +       .       ENSG00000284332 ENST00000607096 1.0     ENSE00003695741 0-25
+1       exon    mirbase 17369   17436   .       -       .       ENSG00000278267 ENST00000619216 1.0     ENSE00003746039 0-25
+1       exon    havana  69037   71585   .       +       .       ENSG00000186092 ENST00000641515 3.0     ENSE00003813949 50-75
 ```
 
 ## TODO:
@@ -49,10 +45,11 @@ featurefetch -g test_data/ensembl.gtf   -sf gene -so Length -kf exon -s quartile
 ## Usage:
 
 ```
-usage: featurefetch [-h] --gtf GTF [--keep-transcript KEEP_TRANSCRIPT]
-                    --sort-feature SORT_FEATURE --sort-on SORT_ON
-                    --keep-feature KEEP_FEATURE --split SPLIT
-                    [--which-intron-exon WHICH_INTRON_EXON]
+usage: featurefetch [-h] --gtf GTF [--outfolder OUTFOLDER] --outfile OUTFILE
+                    [--keep-transcript KEEP_TRANSCRIPT]
+                    [--sort-feature SORT_FEATURE] [--sort-on SORT_ON]
+                    [--keep-feature KEEP_FEATURE] [--split SPLIT]
+                    [--exclude-feature EXCLUDE_FEATURE] [--deeptools-output]
 
 Complex fetching and sorting and aggregation of features. (Visit
 github.com/endrebak/featurefetch for examples and help.)
@@ -60,6 +57,11 @@ github.com/endrebak/featurefetch for examples and help.)
 optional arguments:
   -h, --help            show this help message and exit
   --gtf GTF, -g GTF     GTF file to fetch features from.
+  --outfolder OUTFOLDER, -O OUTFOLDER
+                        If --outfolder is given, one featurefile is written to
+                        <outfolder>/<feature>.txt for each feature.
+  --outfile OUTFILE, -o OUTFILE
+                        The file to write the results in.
   --keep-transcript KEEP_TRANSCRIPT, -kt KEEP_TRANSCRIPT
                         Which transcripts to keep during analyses. Removing
                         some transcripts will also remove the exons belonging
@@ -72,12 +74,16 @@ optional arguments:
                         Characteristic to sort on. Currently available:
                         Length.
   --keep-feature KEEP_FEATURE, -kf KEEP_FEATURE
-                        Feature to keep: gene, transcript, exon.
+                        Feature to keep: gene, transcript, exon, intron.
   --split SPLIT, -s SPLIT
                         Where to split --sort-on into groups. Currently
                         available: Quartiles.
-  --which-intron-exon WHICH_INTRON_EXON, -wie WHICH_INTRON_EXON
-                        Allows you to select a subset of introns/exons (if
-                        introns/exons are the feature to keep). Options: all,
-                        first, last, internal, first_and_last.
+  --exclude-feature EXCLUDE_FEATURE, -x EXCLUDE_FEATURE
+                        Feature to exclude. E.g. if you want the exons (use
+                        --keep-feature exon), but do not want any exon that
+                        overlaps an intron you can use --exclude intron
+  --deeptools-output, -do
+                        Write the output in the correct 7-column bed-like
+                        format for deeptools computematrix. (#chrom start end
+                        name score strand deepTools_group)
 ```
