@@ -3,10 +3,15 @@ import pandas as pd
 
 from featurefetch.regions import find_introns
 
+from pyranges import GRanges
+
+
 splits = {"quartiles": ([0, .25, .5, .75, 1.],
                         "0-25 25-50 50-75 75-100".split())}
 
+
 merge_features = {"gene": "GeneID", "transcript": "TranscriptID", "exon": "ExonID"}
+
 
 def sort_features(df, sort_feature, sort_on, split):
 
@@ -25,7 +30,7 @@ def sort_features(df, sort_feature, sort_on, split):
     return fdf[["Group", sort_on, merge_features[sort_feature]]]
 
 
-def sort_and_select(df, sort_feature, sort_on, split, keep_feature, which):
+def sort_and_select(df, sort_feature, sort_on, split, keep_feature, which, exclude=None):
 
     "Need to sort features, then merge them with original df, lastly"
     "pick them out the feature to keep after using sort order of sort_features"
@@ -35,20 +40,30 @@ def sort_and_select(df, sort_feature, sort_on, split, keep_feature, which):
     sdf = sort_features(df, sort_feature, sort_on, split)
     sdf = sdf.loc[:,[merge_col, "Group", sort_on]]
 
-    # sdf.to_csv("sdf_{keep_feature}_{which}.txt".format(keep_feature=keep_feature, which=which), sep=" ", index=False, header=False, na_rep="NA")
-
     if keep_feature == "intron":
         df = find_introns(df)
 
-    kdf = df[df.Feature == keep_feature]
+    if exclude == "intron":
+        exclude_df = find_introns(df)
+    elif exclude:
+        exclude_df = df[df.Feature == exclude]
 
-    # kdf.to_csv("kdf_{keep_feature}_{which}.txt".format(keep_feature=keep_feature, which=which), sep=" ", index=False, header=False, na_rep="NA")
-    # kdf.to_csv("kdf.txt", sep=" ", index=False, header=False, na_rep="NA")
+    kdf = df[df.Feature == keep_feature]
 
     merged = kdf.merge(sdf, how="right", on=merge_col)
     merged = merged.sort_values(["Group", sort_on])
 
-    # merged.to_csv("merged.txt", sep=" ", index=False, header=False, na_rep="NA")
-    # merged.to_csv("merged_{keep_feature}_{which}.txt".format(keep_feature=keep_feature, which=which), sep=" ", index=False, header=False, na_rep="NA")
+    if exclude:
+        merged.to_csv("merged.csv", sep=" ")
+        exclude_df.to_csv("exclude_df.csv", sep=" ")
+        mgr = GRanges(merged)
+        xgr = GRanges(exclude_df)
+
+        print(mgr)
+        print(xgr)
+        print(mgr - xgr)
+
+        merged = (mgr - xgr).df
+        merged.to_csv("kept.csv", sep=" ")
 
     return merged

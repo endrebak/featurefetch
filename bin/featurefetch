@@ -59,7 +59,7 @@ parser.add_argument(
     '-kf',
     required=True,
     type=str,
-    help='''Feature to keep: gene, transcript, exon.''')
+    help='''Feature to keep: gene, transcript, exon, intron.''')
 
 
 parser.add_argument(
@@ -78,6 +78,14 @@ parser.add_argument(
     default="all",
     help='''Allows you to select a subset of introns/exons (if introns/exons are the feature to keep).
 Options: all, first, last, internal, first_and_last.''')
+
+
+parser.add_argument(
+    "--exclude-feature",
+    "-x",
+    required=False,
+    type=str,
+    help="Feature to exclude. E.g. if you want the exons (use --keep-feature exon), but do not want any exon that overlaps an intron you can use --exclude intron")
 
 
 parser.add_argument(
@@ -116,7 +124,7 @@ if __name__ == "__main__":
                           args.sort_feature,
                           args.sort_on,
                           args.split,
-                          args.keep_feature, args.which_intron_exon)
+                          args.keep_feature, args.which_intron_exon, args.exclude_feature)
 
     # sdf.to_csv("test.txt", sep=" ", index=False, header=False, na_rep="NA")
 
@@ -148,7 +156,6 @@ if __name__ == "__main__":
             print("Illegal value for --which-intron-exon: " + which + ". Ignoring.", file=sys.stderr)
 
     sdf.loc[:, ["Start", "End"]] = sdf[["Start", "End"]].astype(int)
-
 
     if args.deeptools_output:
         sdf = sdf["Chromosome Start End GeneID Score Strand Group".split()]

@@ -14,8 +14,8 @@ def find_introns(df):
 
         introns = exons[1:].copy()
 
-        introns.loc[:, "Start"] = starts
-        introns.loc[:, "End"] = ends
+        introns.loc[:, "Start"] = starts + 1
+        introns.loc[:, "End"] = ends - 1
 
         introns.loc[:, "Feature"] = "intron"
 
