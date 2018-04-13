@@ -21,4 +21,6 @@ def find_introns(df):
 
         introns_to_concat.append(introns)
 
-    return pd.concat(introns_to_concat).reset_index(drop=True)
+    df = pd.concat(introns_to_concat).reset_index(drop=True)
+
+    return df

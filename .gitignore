@@ -1,4 +1,7 @@
 test_data/large/
 .cache/
+*gz
 
+.pytest*
+*egg-*
 *.pyc
