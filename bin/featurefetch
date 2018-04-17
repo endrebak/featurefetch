@@ -204,9 +204,20 @@ if __name__ == "__main__":
 
         subset_df = df[df.Feature == intron_or_exon]
 
-        for transcript, tdf in subset_df.groupby("TranscriptID"):
-            idx = tdf.sort_values("ExonNumber").iloc[remove_position_slice].index.tolist()
-            indexes_to_remove.extend(idx)
+        if remove_position_label in ["last", "first"]:
+            for transcript, tdf in subset_df.groupby("TranscriptID"):
+                # if the transript only has one exon, not interested in considering it first or last
+                if len(tdf) == 1:
+                    indexes_to_remove.extend(tdf.index.tolist())
+                else:
+                    idx = tdf.sort_values("ExonNumber").iloc[remove_position_slice].index.tolist()
+                    indexes_to_remove.extend(idx)
+        else:
+            for transcript, tdf in subset_df.groupby("TranscriptID"):
+                if len(tdf) == 1:
+                    idx = tdf.sort_values("ExonNumber").iloc[remove_position_slice].index.tolist()
+                    indexes_to_remove.extend(idx)
+
 
         idx_to_remove[intron_or_exon, remove_position_label] = indexes_to_remove
 
